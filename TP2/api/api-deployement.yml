@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-deployment
+  labels:
+    app: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+      - name: api
+        image: registry.master3.takima.io/guide/kubernetes-resources/api:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: pg-credentials
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: pg-credentials
+              key: password
+        - name: POSTGRES_DB # Vrai key de la variable d'env. Peut être différent de la valeur dans le config map
+          valueFrom:
+            configMapKeyRef:
+              name: api-config
+              key: postgres-db
+        - name: DB_ENDPOINT # Vrai key de la variable d'env. Peut être différent de la valeur dans le config map
+          valueFrom:
+            configMapKeyRef:
+              name: api-config
+              key: db-endpoint
+      imagePullSecrets:
+      - name: auth-master3-registry

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-deployment
+  labels:
+    app: hello-front
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello-front
+  template:
+    metadata:
+      labels:
+        app: hello-front
+    spec:
+      containers:
+      - name: hello-front
+        image: registry.master3.takima.io/guide/kubernetes-resources/hello_world:latest
+        ports:
+        - containerPort: 3000
+        livenessProbe:
+          initialDelaySeconds: 2
+          periodSeconds: 5
+          httpGet:
+            path: /health
+            port: 3000
+        env:
+        - name: K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: K8S_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: K8S_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: CUSTOM_COLOR # Vrai key de la variable d'env. Peut être différent de la valeur dans le config map
+          valueFrom:
+            secretKeyRef:
+              name: hello-color-secret
+              key: color
+      imagePullSecrets:
+      - name: auth-master3-registry

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: front-config
+data:
+  # property-like keys; each key maps to a simple value
+  api-url: "https://api.catherine-vanden-hende.takima.cloud/"

@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    kubernetes.io/tls-acme: "true"
+    kubernetes.io/ingress.class: nginx
+  name: unicorn-front-ingress
+spec:
+  rules:
+    - host: unicorn-front.catherine-vanden-hende.takima.cloud
+      http:
+        paths:
+          - backend:
+              service:
+                name: unicorn-front-service
+                port:
+                  number: 80
+            path: /
+            pathType: Prefix
+  tls:
+    - hosts:
+        - unicorn-front.catherine-vanden-hende.takima.cloud
+      secretName: app-wildcard
