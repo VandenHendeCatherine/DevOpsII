@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+  name: kibana-ingress
+spec:
+  rules:
+  - host: kibana.catherine-vanden-hende.takima.cloud
+    http:
+      paths:
+      - backend:
+          service:
+            name: formation-kb-kb-http
+            port:
+              number: 5601
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - kibana.catherine-vanden-hende.takima.cloud
+    secretName: app-wildcard-student

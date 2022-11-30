@@ -1,0 +1,20 @@
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: formation-kb
+spec:
+  version: 7.16.0
+  count: 1
+  elasticsearchRef:
+    name: "formation-elk"
+  podTemplate:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+      - name: kibana
+        resources:
+          limits:
+            memory: 1Gi
+            cpu: 1
