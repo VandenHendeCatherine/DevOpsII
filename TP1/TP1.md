@@ -2,11 +2,11 @@
 
 ## Kubeconfig
 
-Les informations présentes dans ce fichier sont :
+Les informations présentes dans la config de kube sont :
 
 - La version de l'API
 - Le cluster avec son certificat d'authenticité
-- Le contexte avec les réfèrences au cluster, le namespace, l'uitlisateur
+- Le contexte avec les réfèrences au cluster, le namespace, l'utilisateur
 - Le type de yml (ici Config)
 - L'utilisateur avec son nom et son token
 
@@ -23,6 +23,11 @@ Error from server (Forbidden): pods is forbidden: User "system:serviceaccount:te
 
 ## Etape 1
 
+### Premières ressources
+
+Création d'un pod à partir d'une image Docker : `kubectl run mynginx --image public.ecr.aws/l3x6e3t5/takima-training/nginx`
+(https://kubernetes.io/docs/concepts/workloads/pods/)
+
 Les propriétés principales de mon pod sont :
 
 - La version de l'API
@@ -33,17 +38,74 @@ Les propriétés principales de mon pod sont :
 - Son status avec les différentes conditions
 - Le status de son container
 
+(visible avec `kubectl get pods mynginx -o yaml`)
+
+Suppression d'un pod : `kubectl delete pods nom_du_pod`
+
+Créer un pod à partir d'un fichier yaml : `kubectl apply -f monfichier.yaml`
+
+`--dry-run=client` : pas de création dans kubernates mais dump du fichier créé
+
+Logs : `kubectl logs nom_du_pod`
+
 ### Replicaset
+
+```yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: unicorn-front-replicaset
+  labels:
+    app: unicorn-front
+spec:
+  template:
+    metadata:
+      name: unicorn-front-pod
+      labels:
+        app: unicorn-front
+    spec:
+      containers:
+        - name: unicorn-front
+          image: public.ecr.aws/l3x6e3t5/takima-training/nginx
+  replicas: 3
+  selector:
+    matchLabels:
+      app: unicorn-front
+```
 
 Le `spec:template` contient les metadata des pods qui vont être créés. Le `selector:matchLabels` sert à préciser quels pods sont à traiter, spécifiés par leur label.
 
-Il y a 3 pods dans mon namespace.
+Il y a 3 pods dans mon namespace quand je deploie ce replicaset.
 
 Quand je supprime un pod, un autre est recréé. Quand je supprime le replicaset, tous les pods créés par celui-ci disparraissent.
 
 ### Deployment
 
-Par rapport au ReplicaSet, le Deployment spécifie un port pour les pods. Ce n'est pas le même type de yaml (kind)
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unicorn-front-deployment
+  labels:
+    app: unicorn-front
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: unicorn-front
+  template:
+    metadata:
+      labels:
+        app: unicorn-front
+    spec:
+      containers:
+        - name: unicorn-front
+          image: public.ecr.aws/l3x6e3t5/takima-training/nginx:1.7.9
+          ports:
+            - containerPort: 80
+```
+
+Par rapport au ReplicaSet, le Deployment spécifie un port pour les pods. Ce n'est pas le même type de yaml (kind). Il permet de créer des replicaSets
 
 Il y a 1 replicaset et 3 pods.
 
@@ -94,6 +156,8 @@ Events:
 
 On observe le nombre de révision, tous les evenements subis par le namespace avec les up et down ainsi que le nombre de replicas et de pods.
 
+Editer la ressource : `kubectl edit deployment.v1.apps/unicorn-front-deployment`
+
 ### Rollback
 
 `kubectl set image deployment.v1.apps/unicorn-front-deployment unicorn-front=public.ecr.aws/l3x6e3t5/takima-training/nginx:1.91-falseimage --record=true` :
@@ -118,14 +182,60 @@ Change-cause : commande changeant le deployement.
 
 ### Mettre à l'échelle
 
+`kubectl scale deployment.v1.apps/unicorn-front-deployment --replicas=5`
 Après la mise à l'échelle, il y a 5 pods.
 
 ### Mettre en standBy
+
+`kubectl rollout pause deployment.v1.apps/unicorn-front-deployment`
 
 Mise en pause puis modification : Il ne se passe rien sur les replicaSets.
 Resume : un nouveau replicaSet est créé et les pods sont mis à jour
 
 ## Etape 2
+
+### Service
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: unicorn-front-service
+spec:
+  selector:
+    app: unicorn-front
+  ports:
+    - protocol: TCP
+      port: 80 # port d'écoute du service
+      targetPort: 80 # port exposé par le container du pod
+```
+
+### Ingress
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  name: unicorn-front-ingress
+spec:
+  rules:
+    - host: replace-with-your-url
+      http:
+        paths:
+          - backend:
+              service:
+                name: unicorn-front-service
+                port:
+                  number: 80
+            path: /
+            pathType: Prefix
+  tls:
+  - hosts:
+     - replace-with-your-url
+     secretName: unicorn-front-tls
+```
 
 ### Mise en situation
 
@@ -133,4 +243,72 @@ Lors du lancement du hello-deployment, les pods n'arrivent pas à récuperer l'i
 
 La WebApp répond un texte "Je suis le pod situé sur le noeud" sur un fond coloré qui change de couleur quand on clique sur F5 (sûrement un changement de pod).
 
+Création d'un secret : `kubectl create secret docker-registry auth-master3-registry --docker-server=registry.master3.takima.io --docker-username=readregcred --docker-password=ZzeuobQWZbPLJRbSNmxt`
+
+A ajouter au ingress.yaml :
+
+```yaml
+imagePullSecrets:
+  - name: auth-master3-registry
+```
+
 Après avoir ajouter les propriétés du pod et du node, elles s'affichent sur l'écran.
+
+## Etape 3
+
+### ConfigMap
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-app
+data:
+  # property-like keys; each key maps to a simple value
+  color: "#200"
+```
+
+Dans le deployement.yaml:
+
+```yaml
+env:
+  - name: CUSTOM_COLOR # Vrai key de la variable d'env. Peut être différent de la valeur dans le config map
+    valueFrom:
+      configMapKeyRef:
+        name: web-app # Nom du configmap
+        key: color # nom de la clef dans le config map
+```
+
+### Secret
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hello-secret
+type: Opaque
+data:
+  username: YWRtaW4=
+  password: MWYyZDFlMmU2N2Rm
+```
+
+Dans le deployement.yaml:
+
+```yaml
+env:
+  - name: CUSTOM_COLOR # Vrai key de la variable d'env. Peut être différent de la valeur dans le config map
+    valueFrom:
+      secretpKeyRef:
+        name: hello-secret # Nom du configmap
+        key: username # nom de la clef dans le config map
+```
+
+### Resources
+
+```yaml
+resources:
+  limits:
+    cpu: 500m
+  requests:
+    cpu: 200m
+```

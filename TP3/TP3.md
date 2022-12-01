@@ -2,7 +2,66 @@
 
 ## ElasticSearch
 
-On remarque que 3 pods elk ont été créés. (`GET _cat/health?v GET _cat/allocation?v`)
+```yaml
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: formation-elk
+spec:
+  version: 7.16.0
+  nodeSets:
+  - name: default
+    count: 3
+    config:
+      node.store.allow_mmap: false
+------
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: formation-kb
+spec:
+  version: 7.16.0
+  count: 1
+  elasticsearchRef:
+    name: "formation-elk"
+  podTemplate:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+      - name: kibana
+        resources:
+          limits:
+            memory: 1Gi
+            cpu: 1
+-------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+  name: kibana-ingress
+spec:
+  rules:
+  - host: kibana.catherine-vanden-hende.takima.cloud
+    http:
+      paths:
+      - backend:
+          service:
+            name: formation-kb-kb-http
+            port:
+              number: 5601
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - kibana.catherine-vanden-hende.takima.cloud
+    secretName: app-wildcard-student
+```
+
+On remarque que 3 pods elk ont été créés (visibles dans Kibana). (`GET _cat/health?v GET _cat/allocation?v`)
 
 ```bash
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
@@ -61,6 +120,52 @@ green  open   .tasks                          rwiDivnOS8G2tVX6V3nC6w   1   1    
 
 
 ```
+
+## Helm
+
+values.yaml
+
+```yaml
+---
+front:
+  enabled: true
+  image:
+    repository: registry.master3.takima.io/guide/kubernetes-resources/front
+    tag: latest
+
+  serviceName: "front"
+
+  servicePort: 80
+```
+
+```yaml
+{{- if .Values.front.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+
+  name: {{ .Values.front.serviceName }}
+
+spec:
+  selector:
+    app: front
+  ports:
+    - protocol: TCP
+
+      port: {{ .Values.front.servicePort }}
+
+      targetPort: 80
+{{ end }}
+
+```
+
+Tester les ressources : `helm template --values ./values.yaml ./ --output-dir dist`
+
+Deployer : `helm install cdb ./`
+
+Modification : `helm upgrade cdb ./`
+
+Suppression : `helm delete mon-app`
 
 ## ArgoCD
 
